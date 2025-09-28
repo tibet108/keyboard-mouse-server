@@ -22,7 +22,7 @@ class RemoteInputClient:
     def setup_gui(self):
         self.root = tk.Tk()
         self.root.title("🖥️ Remote Input Client")
-        self.root.geometry("500x400")
+        self.root.geometry("700x600")
         
         # Статус подключения
         self.status_frame = tk.Frame(self.root)
@@ -41,18 +41,47 @@ class RemoteInputClient:
         self.server_frame.pack(pady=5, fill='x', padx=10)
         
         tk.Label(self.server_frame, text="Сервер:").pack(side='left')
-        self.server_entry = tk.Entry(self.server_frame, width=30)
-        self.server_entry.insert(0, "http://localhost:3000")
+        self.server_entry = tk.Entry(self.server_frame, width=40)
+        self.server_entry.insert(0, "https://keyboard-mouse-server.onrender.com/")
         self.server_entry.pack(side='left', padx=5)
+        
+        # Статистика команд
+        self.stats_frame = tk.Frame(self.root, relief='groove', bd=2)
+        self.stats_frame.pack(pady=5, fill='x', padx=10)
+        
+        tk.Label(self.stats_frame, text="📊 Статистика команд:", font=('Arial', 10, 'bold')).pack()
+        
+        stats_row = tk.Frame(self.stats_frame)
+        stats_row.pack()
+        
+        self.keyboard_count = tk.Label(stats_row, text="⌨️ Клавиатура: 0", fg='blue')
+        self.keyboard_count.pack(side='left', padx=10)
+        
+        self.mouse_count = tk.Label(stats_row, text="🖱️ Мышь: 0", fg='green')
+        self.mouse_count.pack(side='left', padx=10)
+        
+        self.error_count = tk.Label(stats_row, text="❌ Ошибки: 0", fg='red')
+        self.error_count.pack(side='left', padx=10)
         
         # Лог событий
         log_frame = tk.Frame(self.root)
         log_frame.pack(pady=10, fill='both', expand=True, padx=10)
         
-        tk.Label(log_frame, text="📋 Лог событий:", font=('Arial', 10, 'bold')).pack(anchor='w')
+        log_header = tk.Frame(log_frame)
+        log_header.pack(fill='x')
         
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=15, state='disabled')
+        tk.Label(log_header, text="📋 Лог событий:", font=('Arial', 10, 'bold')).pack(side='left')
+        
+        self.clear_btn = tk.Button(log_header, text="🗑️ Очистить", command=self.clear_logs)
+        self.clear_btn.pack(side='right')
+        
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=20, state='disabled')
         self.log_text.pack(fill='both', expand=True)
+        
+        # Инициализируем счетчики
+        self.keyboard_commands = 0
+        self.mouse_commands = 0
+        self.error_commands = 0
         
     def log(self, message):
         """Добавление сообщения в лог"""
@@ -62,6 +91,25 @@ class RemoteInputClient:
         self.log_text.config(state='disabled')
         self.log_text.see(tk.END)
         print(f"[{timestamp}] {message}")
+    
+    def clear_logs(self):
+        """Очистка логов"""
+        self.log_text.config(state='normal')
+        self.log_text.delete(1.0, tk.END)
+        self.log_text.config(state='disabled')
+        self.log("📋 Логи очищены")
+    
+    def update_stats(self, command_type, error=False):
+        """Обновление статистики команд"""
+        if error:
+            self.error_commands += 1
+            self.error_count.config(text=f"❌ Ошибки: {self.error_commands}")
+        elif command_type == 'keyboard':
+            self.keyboard_commands += 1
+            self.keyboard_count.config(text=f"⌨️ Клавиатура: {self.keyboard_commands}")
+        elif command_type == 'mouse':
+            self.mouse_commands += 1
+            self.mouse_count.config(text=f"🖱️ Мышь: {self.mouse_commands}")
     
     def setup_socketio(self):
         @self.sio.event
@@ -87,6 +135,7 @@ class RemoteInputClient:
         @self.sio.event
         def keyboard_execute(data):
             """Выполнение команд клавиатуры"""
+            self.log(f"🎹 Получена команда клавиатуры: {data}")
             try:
                 action = data.get('action')
                 key = data.get('key')
@@ -108,6 +157,9 @@ class RemoteInputClient:
                     self.log(f"⌨️ Ввод текста: {text}")
                     keyboard.write(text)
                 
+                # Обновляем статистику
+                self.root.after(0, lambda: self.update_stats('keyboard'))
+                
                 # Подтверждаем выполнение
                 self.sio.emit('command_executed', {
                     'type': 'keyboard',
@@ -117,6 +169,7 @@ class RemoteInputClient:
                 
             except Exception as e:
                 self.log(f"❌ Ошибка выполнения клавиатуры: {e}")
+                self.root.after(0, lambda: self.update_stats('keyboard', error=True))
                 self.sio.emit('command_executed', {
                     'type': 'keyboard',
                     'success': False,
@@ -127,6 +180,7 @@ class RemoteInputClient:
         @self.sio.event
         def mouse_execute(data):
             """Выполнение команд мыши"""
+            self.log(f"🖱️ Получена команда мыши: {data}")
             try:
                 action = data.get('action')
                 
@@ -162,6 +216,9 @@ class RemoteInputClient:
                     self.log(f"🖱️ Прокрутка: {delta}")
                     mouse.wheel(delta)
                 
+                # Обновляем статистику
+                self.root.after(0, lambda: self.update_stats('mouse'))
+                
                 # Подтверждаем выполнение
                 self.sio.emit('command_executed', {
                     'type': 'mouse',
@@ -171,6 +228,7 @@ class RemoteInputClient:
                 
             except Exception as e:
                 self.log(f"❌ Ошибка выполнения мыши: {e}")
+                self.root.after(0, lambda: self.update_stats('mouse', error=True))
                 self.sio.emit('command_executed', {
                     'type': 'mouse',
                     'success': False,

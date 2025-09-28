@@ -88,7 +88,8 @@ io.on('connection', (socket) => {
     // Отправляем команду всем подключенным PC клиентам
     activeSessions.forEach((session) => {
       if (session.type === 'pc' && session.connected) {
-        session.socket.emit('keyboard-execute', data);
+        console.log(`📤 Отправляю команду клавиатуры PC клиенту ${session.id}`);
+        session.socket.emit('keyboard_execute', data);
       }
     });
   });
@@ -100,7 +101,8 @@ io.on('connection', (socket) => {
     // Отправляем команду всем подключенным PC клиентам
     activeSessions.forEach((session) => {
       if (session.type === 'pc' && session.connected) {
-        session.socket.emit('mouse-execute', data);
+        console.log(`📤 Отправляю команду мыши PC клиенту ${session.id}`);
+        session.socket.emit('mouse_execute', data);
       }
     });
   });
